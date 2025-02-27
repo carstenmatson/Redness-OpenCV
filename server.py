@@ -1,47 +1,39 @@
+# server.py
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import cv2
 import numpy as np
 import os
 
+# Import custom modules
+from preprocessing.crop_face import detect_and_crop_face
+from preprocessing.extract_regions import detect_and_extract_regions
+from main.redness import calculate_redness
+
 app = Flask(__name__)
-CORS(app)  # Allow cross-origin requests (needed for FlutterFlow frontend)
+CORS(app)  # Allow cross-origin requests
 
-def normalize_brightness(image):
-    """Normalize brightness across different lighting conditions."""
-    lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
-    l, a, b = cv2.split(lab)
-    l = cv2.equalizeHist(l)  # Normalize brightness
-    normalized = cv2.merge((l, a, b))
-    return cv2.cvtColor(normalized, cv2.COLOR_LAB2BGR)
+# ✅ Set up paths
+UPLOAD_DIR = "uploads"
+PROCESSED_DIR = "data/processed_faces"
+REGIONS_DIR = "data/extracted_regions"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+os.makedirs(PROCESSED_DIR, exist_ok=True)
+os.makedirs(REGIONS_DIR, exist_ok=True)
 
-def calculate_redness(image):
-    """Compute redness score based on HSV color space."""
-    image = normalize_brightness(image)  # Normalize brightness before processing
-    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-
-    # Adjusted red detection range
-    lower_red1, upper_red1 = np.array([0, 70, 50]), np.array([10, 255, 255])
-    lower_red2, upper_red2 = np.array([170, 70, 50]), np.array([180, 255, 255])
-
-    mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
-    mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
-    redness_mask = mask1 + mask2
-
-    total_pixels = image.shape[0] * image.shape[1]
-    red_pixels = np.count_nonzero(redness_mask)
-    redness_percentage = (red_pixels / total_pixels) * 100
-
-    return round(redness_percentage, 2)
+def normalize_redness(score, min_value=25, max_value=100):
+    """Scale redness scores to a 25-100 range."""
+    scaled_score = ((score - 2) / (5 - 2)) * (max_value - min_value) + min_value
+    return round(max(min(scaled_score, max_value), min_value), 2)
 
 @app.route('/')
 def home():
-    """Base route for testing."""
+    """Base route."""
     return jsonify({"message": "✅ Redness detection API is live!"}), 200
 
 @app.route('/healthz')
 def health():
-    """Health check endpoint for Render."""
+    """Health check for Render."""
     return jsonify({"status": "healthy"}), 200
 
 @app.route('/analyze', methods=['POST'])
@@ -51,14 +43,29 @@ def analyze():
         return jsonify({"error": "No file uploaded"}), 400
 
     file = request.files['file']
-    image = cv2.imdecode(np.frombuffer(file.read(), np.uint8), cv2.IMREAD_COLOR)
+    filename = os.path.join(UPLOAD_DIR, file.filename)
+    file.save(filename)
 
-    if image is None:
-        return jsonify({"error": "Invalid image format"}), 400
+    # ✅ Step 1: Detect and crop face
+    processed_path = os.path.join(PROCESSED_DIR, file.filename)
+    face_image = detect_and_crop_face(filename, processed_path)
+    if face_image is None:
+        return jsonify({"error": "No face detected"}), 400
 
-    redness_score = calculate_redness(image)
-    return jsonify({"redness_score": redness_score})
+    # ✅ Step 2: Extract facial regions
+    detect_and_extract_regions(processed_path, REGIONS_DIR)
+
+    # ✅ Step 3: Compute redness for each region
+    region_scores = {}
+    for region in ["forehead", "left_cheek", "right_cheek", "chin"]:
+        region_path = os.path.join(REGIONS_DIR, f"{os.path.splitext(file.filename)[0]}_{region}.jpg")
+        if os.path.exists(region_path):
+            region_image = cv2.imread(region_path)
+            raw_score = calculate_redness(region_image)
+            region_scores[region] = normalize_redness(raw_score)
+
+    return jsonify({"redness_scores": region_scores})
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 8080))  # Use PORT from Render, default to 8080
+    port = int(os.environ.get('PORT', 8080))  # Use Render's PORT if available
     app.run(host='0.0.0.0', port=port)

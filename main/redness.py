@@ -1,3 +1,4 @@
+# redness.py
 import os
 import cv2
 import numpy as np
@@ -49,24 +50,7 @@ def calculate_redness(image):
     # ✅ Ensure redness score stays within 25-100
     return round(max(min(redness_score, 100), 25), 2)
 
-def process_redness(region_dir):
-    """Process extracted facial regions and compute redness scores."""
-    redness_scores = {}
     
-    for region_file in os.listdir(region_dir):
-        if region_file.endswith(('.png', '.jpg', '.jpeg')):
-            image_path = os.path.join(region_dir, region_file)
-            image = cv2.imread(image_path)
-
-            if image is not None:
-                score = calculate_redness(image)
-                region_name = os.path.splitext(region_file)[0]
-                redness_scores[region_name] = score
-                print(f"✅ {region_name}: Redness Score = {score}/100")
-            else:
-                print(f"❌ Failed to read image: {region_file}")
-
-    return redness_scores
 
 
 

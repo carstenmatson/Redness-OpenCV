@@ -1,4 +1,5 @@
 flask
+flask-cors  # ✅ Fix for CORS issue
 opencv-python-headless
 numpy
 gunicorn  # 🚀 Production-ready server

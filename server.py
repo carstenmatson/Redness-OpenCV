@@ -1,8 +1,11 @@
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 import cv2
 import numpy as np
+import os
 
 app = Flask(__name__)
+CORS(app)  # Allow cross-origin requests (needed for FlutterFlow frontend)
 
 def normalize_brightness(image):
     """Normalize brightness across different lighting conditions."""
@@ -33,12 +36,12 @@ def calculate_redness(image):
 
 @app.route('/')
 def home():
-    """Render's health check endpoint."""
-    return jsonify({"message": "✅ Redness detection API is running!"}), 200
+    """Base route for testing."""
+    return jsonify({"message": "✅ Redness detection API is live!"}), 200
 
 @app.route('/healthz')
 def health():
-    """Health check for Render deployments."""
+    """Health check endpoint for Render."""
     return jsonify({"status": "healthy"}), 200
 
 @app.route('/analyze', methods=['POST'])
@@ -57,4 +60,5 @@ def analyze():
     return jsonify({"redness_score": redness_score})
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8080)
+    port = int(os.environ.get('PORT', 8080))  # Use PORT from Render, default to 8080
+    app.run(host='0.0.0.0', port=port)

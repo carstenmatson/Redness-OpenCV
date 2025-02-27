@@ -5,8 +5,8 @@ import cv2
 import numpy as np
 import os
 
-# Import custom modules
-from preprocessing.crop_face import detect_and_crop_face
+# ✅ Corrected import paths
+from preprocessing.crop_face import detect_and_crop_faces
 from preprocessing.extract_regions import detect_and_extract_regions
 from main.redness import calculate_redness
 
@@ -24,7 +24,7 @@ os.makedirs(PROCESSED_DIR, exist_ok=True)
 os.makedirs(REGIONS_DIR, exist_ok=True)
 
 def normalize_redness(score, min_value=25, max_value=100):
-    """Scale redness scores to a 25-100 range."""
+    """Ensure redness scores stay within 25-100."""
     return round(max(min(score, max_value), min_value), 2)
 
 @app.route('/')
@@ -49,9 +49,7 @@ def analyze():
 
     # ✅ Step 1: Detect and crop face
     processed_path = os.path.join(PROCESSED_DIR, file.filename)
-    face_image = detect_and_crop_face(filename, processed_path)
-    if face_image is None:
-        return jsonify({"error": "No face detected"}), 400
+    detect_and_crop_faces(filename, PROCESSED_DIR)
 
     # ✅ Step 2: Extract facial regions
     detect_and_extract_regions(processed_path, REGIONS_DIR)
@@ -73,4 +71,5 @@ def analyze():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8080))  # Use Render's PORT if available
     app.run(host='0.0.0.0', port=port)
+
 

@@ -13,18 +13,19 @@ from main.redness import calculate_redness
 app = Flask(__name__)
 CORS(app)  # Allow cross-origin requests
 
-# ✅ Set up paths
-UPLOAD_DIR = "uploads"
-PROCESSED_DIR = "data/processed_faces"
-REGIONS_DIR = "data/extracted_regions"
+# ✅ Set up absolute paths (Fix for Render)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
+PROCESSED_DIR = os.path.join(BASE_DIR, "data/processed_faces")
+REGIONS_DIR = os.path.join(BASE_DIR, "data/extracted_regions")
+
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(PROCESSED_DIR, exist_ok=True)
 os.makedirs(REGIONS_DIR, exist_ok=True)
 
 def normalize_redness(score, min_value=25, max_value=100):
     """Scale redness scores to a 25-100 range."""
-    scaled_score = ((score - 2) / (5 - 2)) * (max_value - min_value) + min_value
-    return round(max(min(scaled_score, max_value), min_value), 2)
+    return round(max(min(score, max_value), min_value), 2)
 
 @app.route('/')
 def home():
@@ -64,8 +65,12 @@ def analyze():
             raw_score = calculate_redness(region_image)
             region_scores[region] = normalize_redness(raw_score)
 
+    if not region_scores:
+        return jsonify({"error": "No facial regions detected"}), 400
+
     return jsonify({"redness_scores": region_scores})
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8080))  # Use Render's PORT if available
     app.run(host='0.0.0.0', port=port)
+
